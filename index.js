@@ -96,7 +96,8 @@ document.addEventListener("mousedown", (event) => {
     case 2:
       keys['m'+ event.button] = true
       if (selectedRock){return}
-      rocks.set(rocks.size + 1, new Rock(buffer,createVector(mouseX, mouseY)));
+      rocks.set(rocks.size, new Rock(buffer,createVector(mouseX+windowPos.x, mouseY+windowPos.y)));
+      selectedRock = rocks.get(rocks.size-1)
       event.preventDefault(); // Prevent the default context menu
       break;
     default:
