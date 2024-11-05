@@ -1,56 +1,49 @@
-const KEY_ROTATION = 0.1;
-const KEY_ROTATION_FINE = 0.01;
-const MOUSE_ROTATION = 0.003;
-const MOUSE_ROTATION_FINE = 0.0005;
-const KEY_FINE = 83; //s key
-const MAX_ROTATION_SPEED = 200;
-
-const keys = {};
-let buffer,windowPos,mousePrev;
-
+const KEYS = {};
+const SETTINGS = {
+  numRocks:10,
+  worldWidth: 8000,
+  worldHeight: 8000,
+  margin: 100,
+  rotSpeed: 0.1,
+  rotSpeedWheel: 0.002,
+  //multiplier for fine control
+  get mult() {
+    return KEYS["s"] ? 0.1 : 1;
+  },
+};
 
 let rocks = new Map();
-let selectedRock = null;
+let rockCounter = 0;
+let world, windowPos, mousePrev, selectedRock, canvasGrabbed;
 
 function setup() {
-  let canvas = createCanvas(windowWidth, windowHeight);
-  buffer = createGraphics(10000,10000);
-  buffer.colorMode(HSL);
-  buffer.noStroke();
-  windowPos = createVector()
-  mousePrev = createVector()
+  createCanvas(windowWidth, windowHeight);
+  world = createGraphics(SETTINGS.worldWidth, SETTINGS.worldHeight);
+  world.colorMode(HSL);
+  world.noStroke();
+  world.fill(240, 8, 75);
+  let c = createVector(world.width / 2, world.height / 2)
   // MAKE ROCKS
-  for (let i = 0; i < 10; i++) {
-    rocks.set(i, new Rock(buffer,createVector(random(width), random(height))));
+  for (let i = 0; i < SETTINGS.numRocks; i++) {
+    rocks.set(rockCounter++, new Rock(world, createVector(random(c.x - width / 2 + SETTINGS.margin, c.x + width / 2 - SETTINGS.margin), random(c.y - height / 2 + SETTINGS.margin, c.y + height / 2 - SETTINGS.margin))));
   }
-  
+  mousePrev = createVector();
+  windowPos = createVector(c.x - width / 2, c.y - height / 2);
 }
 
 function draw() {
-  fill(0,0,0)
-  buffer.clear()
-  buffer.background(240, 2, 95);
   getInput();
-  // draw base rock
-  buffer.fill(240, 8, 75);
-  rocks.forEach((rock) => rock.draw());
-  // draw selected rock
+  world.background(240, 2, 95);
+  world.fill(240, 8, 75);
+  rocks.forEach(rock => rock.draw());
   if (selectedRock) {
-    // draw overlapping rocks
     let overlapping = selectedRock.checkOverlap(rocks);
     if (overlapping) {
-      buffer.fill("red");
-      overlapping.forEach((rock) => rock.draw());
+      world.fill(355, 100, 50, 0.5);
+      overlapping.forEach(rock => rock.draw());
     }
   }
-  image(buffer,0,0,width,height,windowPos.x,windowPos.y,width,height)
-}
-
-function mouseWheel(event) {
-  if (!selectedRock) return false;
-  let angle = constrain(event.delta, -MAX_ROTATION_SPEED, MAX_ROTATION_SPEED);
-  selectedRock.rotate(angle * (keyIsDown(KEY_FINE) ? MOUSE_ROTATION_FINE : MOUSE_ROTATION));
-  return false;
+  image(world, 0, 0, width, height, windowPos.x, windowPos.y, width, height);
 }
 
 function windowResized() {
@@ -58,64 +51,80 @@ function windowResized() {
 }
 
 function getInput() {
-  if (keys["a"] && selectedRock) {
-    keys["s"] ? selectedRock.rotate(-KEY_ROTATION_FINE) : selectedRock.rotate(-KEY_ROTATION);
-  }
-  if (keys["d"] && selectedRock) {
-    keys["s"] ? selectedRock.rotate(KEY_ROTATION_FINE) : selectedRock.rotate(KEY_ROTATION);
-  }
+  if (selectedRock) {
+    if (KEYS["a"]) {
+      selectedRock.rotate(-SETTINGS.rotSpeed * SETTINGS.mult);
+    }
+    if (KEYS["d"]) {
+      selectedRock.rotate(SETTINGS.rotSpeed * SETTINGS.mult);
+    }
+  } 
 }
 
+document.addEventListener("keydown", e => KEYS[e.key] = true);
+document.addEventListener("keyup", e => KEYS[e.key] = false);
+document.addEventListener("mousedown", e => KEYS["m" + e.button] = true);
+document.addEventListener("mouseup", e => { KEYS["m" + e.button] = false; canvasGrabbed = false });
+document.addEventListener("contextmenu", e => e.preventDefault());
+document.addEventListener("mousedown", e => { handleMouseDown(e) });
+document.addEventListener("mousemove", e => { handleMouseMove(e) });
+document.addEventListener("wheel", e => { handleWheel(e) }, { passive: false });
 
-document.addEventListener("keydown", (e) => keys[e.key] = true);
-document.addEventListener("keyup", (e) => keys[e.key] = false);
-document.addEventListener("contextmenu", (event) => {event.preventDefault();});
-document.addEventListener("mouseup",e=> keys['m'+ e.button] = false)
-document.addEventListener("mousedown", (event) => {
-  switch (event.button) {
-    case 0:
-      keys['m'+ event.button] = true
-      if (selectedRock) {
-        if (!selectedRock.checkOverlap(rocks)) {
-          selectedRock = null;
-        }
-      } else {
-        for (let [i, rock] of rocks) {
-          if (rock.collidePoint(createVector(mouseX+windowPos.x, mouseY+windowPos.y))) {
-            selectedRock = rock;
-            return
-          }
-        }
-        console.log('canvas click')
+function handleWheel(e) {
+  e.preventDefault();
+  if (selectedRock) {
+    // ROTATE WHEEL
+    selectedRock.rotate(e.deltaY * SETTINGS.rotSpeedWheel * SETTINGS.mult);
+  }
+  if (!selectedRock) {
+    // MOVE WINDOW
+    windowPos.x = constrain(windowPos.x + e.deltaX, 0, world.width - width);
+    windowPos.y = constrain(windowPos.y + e.deltaY, 0, world.width - height);
+  }
+}
+function handleMouseMove(e) {
+  let delta = createVector(e.clientX, e.clientY).sub(mousePrev);
+  if (selectedRock) {
+    // MOVE ROCK
+    selectedRock.move(delta);
+  } else if (KEYS["m0"] && canvasGrabbed) {
+    // MOVE WINDOW
+    windowPos.x = constrain(windowPos.x - delta.x, 0, world.width - width);
+    windowPos.y = constrain(windowPos.y - delta.y, 0, world.width - height);
+  }
+  mousePrev = createVector(e.clientX, e.clientY);
+}
+function handleMouseDown(e) {
+  if (e.button == 0) {
+    if (selectedRock) {
+      // PLACE ROCK
+      if (!selectedRock.checkOverlap(rocks)) {
+        selectedRock = null;
+        return;
       }
-      break;
-    case 1:
-      keys['m'+ event.button] = true
-      console.log("Middle mouse button clicked");
-      break;
-    case 2:
-      keys['m'+ event.button] = true
-      if (selectedRock){return}
-      rocks.set(rocks.size, new Rock(buffer,createVector(mouseX+windowPos.x, mouseY+windowPos.y)));
-      selectedRock = rocks.get(rocks.size-1)
-      event.preventDefault(); // Prevent the default context menu
-      break;
-    default:
-      console.log("Unknown mouse button clicked");
+    }
+    if (!selectedRock) {
+      // PICK ROCK
+      for (let rock of rocks.values()) {
+        if (rock.collidePoint(createVector(mouseX + windowPos.x, mouseY + windowPos.y))) {
+          selectedRock = rock;
+          return;
+        }
+      }
+      canvasGrabbed = true;
+    }
   }
-});
-
-
-document.addEventListener("mousemove", (e) => {
-  let delta = createVector(e.clientX,e.clientY).sub(mousePrev)
-  if(selectedRock){
-    selectedRock.move(delta); 
-  } else if (keys['m0']){
-    windowPos.x = constrain(windowPos.x - delta.x,0,buffer.width - width)
-    windowPos.y = constrain(windowPos.y - delta.y,0,buffer.width - height)
+  if (e.button == 2) {
+    // DELETE ROCK IF CLICKED
+    if (!selectedRock) {
+      for (let [i, rock] of rocks) {
+        if (rock.collidePoint(createVector(mouseX + windowPos.x, mouseY + windowPos.y))) {
+          (rocks.delete(i))
+          return;
+        }
+      }
+      // OTHERWISE ADD NEW ROCK IF NO ROCK CLICKED
+      rocks.set(rockCounter++, new Rock(world, createVector(mouseX + windowPos.x, mouseY + windowPos.y)));
+    }
   }
-
-
-
-  mousePrev = createVector(e.clientX,e.clientY)
-});
+}

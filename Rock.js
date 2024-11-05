@@ -1,5 +1,7 @@
-class Rock {
-  constructor(canvas,pos) {
+class Settings {
+  constructor() {
+
+
     this.pos = pos || createVector(0, 0);
     this.minPoints = 5;
     this.maxPoints = 12;
@@ -65,7 +67,6 @@ class Rock {
   }
 
   move(mouseDeltaVec) {
-    // let mouseDelta = createVector(mouseX - pmouseX, mouseY - pmouseY);
     this.pos = p5.Vector.add(this.pos, mouseDeltaVec);
     this.updateGlobalPoints();
   }
