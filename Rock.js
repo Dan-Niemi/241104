@@ -1,7 +1,5 @@
-class Settings {
-  constructor() {
-
-
+class Rock {
+  constructor(canvas,pos) {
     this.pos = pos || createVector(0, 0);
     this.minPoints = 5;
     this.maxPoints = 12;
